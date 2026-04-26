@@ -1,89 +1,104 @@
 from typing import TypedDict, List
-from langgraph.graph import StateGraph
-try:
-    from langchain_ollama import ChatOllama
-except ImportError:
-    from langchain_community.chat_models import ChatOllama
-from backend import config
-from backend.rag_engine import ProductionRAG  # Assuming your RAG class is here
 
-# Initialize with the specific name 'llama3:latest'
-llm = ChatOllama(
-    model=config.MODEL_NAME,
-    base_url=config.OLLAMA_BASE_URL,
-    temperature=0 # Set to 0 for consistent, grounded production responses
-)
-from typing import TypedDict, List
 from langgraph.graph import StateGraph, END
+from langchain_ollama import ChatOllama
+
+from backend.rag_engine import ProductionRAG
+from backend import config
 
 
-# ... other imports (Ollama, etc.)
-
-# 1. Define the State first
+# ---------------------------
+# STATE
+# ---------------------------
 class AgentState(TypedDict):
     messages: List[str]
     context: List[str]
-    is_relevant: bool
 
 
-# 2. Define the Node Functions BEFORE the graph assembly
+# ---------------------------
+# GLOBALS (initialized later)
+# ---------------------------
+rag = None
+llm = None
 
 
-rag_engine = ProductionRAG()
-rag_engine.load_docs()  # Initialize the vector store
+# ---------------------------
+# INIT FUNCTION (IMPORTANT FIX)
+# ---------------------------
+def init_rag():
+    global rag, llm
+
+    if rag is None:
+        rag = ProductionRAG()
+        rag.load_docs()
+
+    if llm is None:
+        llm = ChatOllama(
+            model=config.MODEL_NAME,
+            base_url=config.OLLAMA_BASE_URL,
+            temperature=0
+        )
+
+    print("🧠 RAG initialized")
 
 
-def retrieve_node(state: AgentState):
-    print("---RETRIEVING FROM KNOWLEDGE BASE---")
+# ---------------------------
+# NODES
+# ---------------------------
+def retrieve(state: AgentState):
     question = state["messages"][-1]
 
-    # Call the actual search method
-    search_results = rag_engine.get_context(question)
+    docs = rag.get_context(question)
+    context = [d.page_content for d in docs]
 
-    # Extract text from the retrieved documents
-    context_data = [doc.page_content for doc in search_results]
-
-    return {"context": context_data}
-
-
-from langchain_community.chat_models import ChatOllama
-from backend import config
-
-llm = ChatOllama(model=config.MODEL_NAME, base_url=config.OLLAMA_BASE_URL)
+    return {
+        "messages": state["messages"],  # ✅ IMPORTANT FIX
+        "context": context
+    }
 
 
-def generate_node(state: AgentState):
-    print("---GENERATING RESPONSE VIA LLAMA 3---")
-    context = "\n".join(state["context"])
+def generate(state: AgentState):
     question = state["messages"][-1]
+    context = "\n\n".join(state.get("context", []))
+
+    if not context.strip():
+        return {
+            "messages": state["messages"] + ["Not found in documents"]
+        }
 
     prompt = f"""
-    Answer the following question based ONLY on the provided context.
-    If the context doesn't contain the answer, say you don't know.
+You are a RAG assistant.
 
-    CONTEXT:
-    {context}
+Context:
+{context}
 
-    QUESTION:
-    {question}
-    """
+Question:
+{question}
+
+Answer ONLY using context.
+"""
 
     response = llm.invoke(prompt)
 
-    # Return the real response content
-    return {"messages": state["messages"] + [response.content]}
+    return {
+        "messages": state["messages"] + [response.content],
+        "context": state["context"]
+    }
 
-
-# 3. Assemble the Graph
+# ---------------------------
+# GRAPH
+# ---------------------------
 def create_agent():
-    workflow = StateGraph(AgentState)
+    init_rag()
 
-    # Now Python knows what 'retrieve_node' is
-    workflow.add_node("retrieve", retrieve_node)
-    workflow.add_node("generate", generate_node)
+    graph = StateGraph(AgentState)
 
-    workflow.set_entry_point("retrieve")
-    workflow.add_edge("retrieve", "generate")
-    workflow.add_edge("generate", END)
+    graph.add_node("retrieve", retrieve)
+    graph.add_node("generate", generate)
 
-    return workflow.compile()
+    graph.set_entry_point("retrieve")
+
+    graph.add_edge("retrieve", "generate")
+    graph.add_edge("generate", END)
+
+    return graph.compile()

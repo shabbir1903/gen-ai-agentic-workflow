@@ -1,0 +1,1 @@
+RAG (Retrieval-Augmented Generation) is a technique where an LLM retrieves relevant documents from a vector database and uses them to generate grounded responses.

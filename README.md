@@ -1,4 +1,4 @@
-# Agentic AI: Production-Ready RAG System (Ollama + LangGraph)
+`# Agentic AI: Production-Ready RAG System (Ollama + LangGraph)
 
 This project is a high-performance, local Agentic RAG system built with **Python 3.13**, **LangGraph**, and **Ollama (Llama 3)**. It transitions a standard linear RAG pipeline into a stateful, iterative reasoning engine capable of self-correction and high-precision retrieval.
 
@@ -114,13 +114,39 @@ pydantic
 ### 6. Run the Application
 
 ```bash
-uvicorn app.main:app --reload
+
+/opt/homebrew/opt/python@3.11/bin/python3.11 -m venv .venv
+source .venv/bin/activate
+pip uninstall -y langchain langchain-core langchain-community langgraph langchain-text-splitters langchain-ollama langchain-chroma chromadb
+pip cache purge
+pip install -U pip
+
+pip install \
+  langchain==0.2.17 \
+  langchain-core==0.2.43 \
+  langchain-community==0.2.17 \
+  langchain-text-splitters==0.2.4 \
+  langgraph==0.2.35 \
+  langchain-ollama==0.1.0 \
+  langchain-chroma \
+  chromadb \
+  numpy==1.26.4
+  python -c "from langchain_ollama import ChatOllama; print('OLLAMA OK')"
+  python -c "from langchain_chroma import Chroma; print('CHROMA OK')"
+  python -c "from langgraph.graph import StateGraph; print('LANGGRAPH OK')"
+  
+  pip install -r requirements.txt
+  pip freeze > requirements.lock.txt
+  pip-compile requirements.txt
+  python -c "from backend.rag_engine import ProductionRAG; print('RAG OK')"
+  python -c "from backend.agent_graph import create_agent; print('GRAPH OK')"
+uvicorn backend.main:app --reload --port 8001
 ```
 
 API will be available at:
 
 ```
-http://localhost:8000
+http://localhost:8001/ask?q=What is RAG?
 ```
 
 ---

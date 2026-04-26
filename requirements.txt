@@ -1,25 +1,14 @@
-# --- Core Framework & Web Server ---
-fastapi          # [cite: 273]
-uvicorn          # [cite: 274]
-requests         # [cite: 279]
-python-dotenv    # For managing environment variables
+fastapi==0.111.0
+uvicorn==0.30.0
 
-# --- LangChain & Orchestration ---
-langchain        # [cite: 276]
-langchain-community
-langchain-openai # If still using for some components/embeddings
-langgraph        # Required for stateful agent orchestration [cite: 421]
+langchain>=0.2.17
+langchain-core>=0.2.43
+langchain-community>=0.2.17
+langchain-text-splitters
+langchain-ollama
 
-# --- Local LLM Integration (Ollama) ---
-# Supports Llama 3 integration via local host [cite: 477]
+langgraph>=0.2.35,<1.2
 
-# --- Advanced RAG & Vector Database ---
-chromadb         # Recommended local vector database for Llama 3
-faiss-cpu        # Optional alternative for vector search [cite: 277]
-tiktoken         # For token counting [cite: 278]
-flashrank        # Lightweight local reranker to reduce Top-K noise
-rank_bm25        # Required for Hybrid Search (Keyword matching) [cite: 414, 438]
-
-# --- Observability & Evaluation ---
-langsmith        # Essential for production tracing and debugging [cite: 416, 451]
-ragas            # For measuring "Faithfulness" and accuracy [cite: 433, 452]
+chromadb==0.5.5
+pydantic==2.8.2
+python-dotenv==1.0.1

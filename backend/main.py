@@ -1,37 +1,36 @@
-import sys
-import os
-
-# Get the path to your .venv site-packages
-venv_site_packages = os.path.abspath(".venv/lib/python3.13/site-packages")
-
-# Insert it at the very beginning of the search path
-if venv_site_packages not in sys.path:
-    sys.path.insert(0, venv_site_packages)
-
-print(f"--- 🛡️  Path Isolation Active: {sys.path[0]} ---")
-# Normal imports proceed below
-
 from fastapi import FastAPI, Query
 from backend.agent_graph import create_agent
 
 app = FastAPI()
-# Initialize the compiled LangGraph agent once at startup
-agent_app = create_agent()
+
+agent_app = None
+
+
+@app.on_event("startup")
+def startup_event():
+    global agent_app
+    print("🧠 Creating agent graph...")
+    agent_app = create_agent()
+    print("✅ System ready!")
 
 
 @app.get("/ask")
-async def ask(q: str = Query(..., description="The user question")):
-    # 1. Initialize the state for the LangGraph
-    inputs = {"messages": [q], "context": [], "is_relevant": False}
+async def ask(q: str = Query(...)):
 
-    # 2. Run the agentic loop
-    # The agent will move through retrieve -> grade -> generate nodes
-    config = {"configurable": {"thread_id": "1"}}  # Essential for state memory
-    result = await agent_app.ainvoke(inputs, config)
+    inputs = {
+        "messages": [q],
+        "context": []
+    }
 
-    # 3. Return the final state's context and message
+    result = await agent_app.ainvoke(inputs, {"configurable": {"thread_id": "1"}})
+
+    raw_context = result.get("context", [])
+
+    # clean + deduplicate sources
+    clean_sources = list(dict.fromkeys(raw_context))
+
     return {
         "question": q,
-        "answer": result["messages"][-1],  # The last message is the LLM's response
-        "sources": result["context"]
+        "answer": result["messages"][-1],
+        "sources": clean_sources
     }
